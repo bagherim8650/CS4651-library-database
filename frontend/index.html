@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Library Catalog System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .nav {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .nav button {
+            padding: 10px 20px;
+            border: none;
+            background: #007bff;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .nav button:hover {
+            background: #0056b3;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .section.active {
+            display: block;
+        }
+        input,
+        select {
+            padding: 8px;
+            margin: 5px 5px 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 15px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #218838;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th,
+        td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            margin: 10px 0;
+        }
+        .success {
+            color: green;
+            margin: 10px 0;
+        }
+        .badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .badge-available {
+            background: #d4edda;
+            color: #155724;
+        }
+        .badge-unavailable {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 Library Catalog System</h1>
+
+        <div class="nav">
+            <button onclick="showSection('search')">🔍 Search Catalog</button>
+            <button onclick="showSection('account')">👤 My Account</button>
+            <button onclick="showSection('signup')">📝 Sign Up</button>
+            <button onclick="showSection('librarian')" style="background:#6c757d;">🔐 Librarian Dashboard</button>
+        </div>
+
+        <!-- SEARCH SECTION -->
+        <div id="search" class="section active">
+            <h2>Search Books</h2>
+            <div>
+                <input type="text" id="keyword" placeholder="Search by title or author...">
+                <select id="genre">
+                    <option value="">All Genres</option>
+                    <option value="Classic">Classic</option>
+                    <option value="Dystopian">Dystopian</option>
+                    <option value="Fantasy">Fantasy</option>
+                    <option value="Sci-Fi">Sci-Fi</option>
+                    <option value="Children's">Children's</option>
+                    <option value="Non-Fiction">Non-Fiction</option>
+                </select>
+                <button onclick="searchBooks()">Search</button>
+            </div>
+            <div id="searchResults"></div>
+        </div>
+
+        <!-- ACCOUNT SECTION -->
+        <div id="account" class="section">
+            <h2>My Account</h2>
+            <div>
+                <input type="text" id="accountCard" placeholder="Enter your card number">
+                <button onclick="viewAccount()">View Account</button>
+            </div>
+            <div id="accountResults"></div>
+        </div>
+
+        <!-- SIGNUP SECTION -->
+        <div id="signup" class="section">
+            <h2>Sign Up for Library Card</h2>
+            <div>
+                <input type="text" id="signupFirstName" placeholder="First Name">
+                <input type="text" id="signupLastName" placeholder="Last Name">
+                <input type="email" id="signupEmail" placeholder="Email">
+                <input type="text" id="signupCard" placeholder="Choose 8-digit Card Number">
+                <button onclick="signUp()">Sign Up</button>
+            </div>
+            <div id="signupResult"></div>
+        </div>
+
+        <!-- LIBRARIAN SECTION -->
+        <div id="librarian" class="section">
+            <h2>Librarian Dashboard</h2>
+            <div style="margin-bottom:15px;">
+                <h3>Add Book</h3>
+                <input type="text" id="addTitle" placeholder="Title">
+                <input type="text" id="addAuthor" placeholder="Author">
+                <input type="text" id="addGenre" placeholder="Genre">
+                <input type="number" id="addCopies" placeholder="Copies">
+                <button onclick="addBook()">Add Book</button>
+            </div>
+            <div style="margin-bottom:15px;">
+                <h3>Checkout Book</h3>
+                <input type="number" id="checkoutBookId" placeholder="Book ID">
+                <input type="text" id="checkoutPatron" placeholder="Patron Card #">
+                <input type="number" id="checkoutLibrarian" placeholder="Librarian ID">
+                <button onclick="checkoutBook()">Checkout</button>
+            </div>
+            <div style="margin-bottom:15px;">
+                <h3>Return Book</h3>
+                <input type="number" id="returnBookId" placeholder="Book ID">
+                <button onclick="returnBook()">Return</button>
+            </div>
+            <div>
+                <h3>Full Catalog</h3>
+                <button onclick="viewFullCatalog()">Refresh Catalog</button>
+                <div id="catalogResults"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+
+        function showSection(id) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        // ===== PATRON FUNCTIONS =====
+
+        async function searchBooks() {
+            const keyword = document.getElementById('keyword').value;
+            const genre = document.getElementById('genre').value;
+            let url = `${API_URL}/books?`;
+            if (keyword) url += `keyword=${encodeURIComponent(keyword)}&`;
+            if (genre) url += `genre=${encodeURIComponent(genre)}&`;
+
+            try {
+                const response = await fetch(url);
+                const books = await response.json();
+                const container = document.getElementById('searchResults');
+
+                if (books.length === 0) {
+                    container.innerHTML = '<p>No books found.</p>';
+                    return;
+                }
+
+                let html = `<table>
+                    <tr><th>Title</th><th>Author</th><th>Genre</th><th>Status</th><th>Action</th></tr>`;
+                books.forEach(book => {
+                    const status = book.available ? 
+                        '<span class="badge badge-available">Available</span>' : 
+                        '<span class="badge badge-unavailable">Unavailable</span>';
+                    const action = !book.available ? 
+                        `<button onclick="reserveBook(${book.book_id})">Reserve</button>` : 
+                        '<span style="color:#6c757d;">-</span>';
+                    html += `<tr>
+                        <td>${book.title}</td>
+                        <td>${book.author}</td>
+                        <td>${book.genre}</td>
+                        <td>${status}</td>
+                        <td>${action}</td>
+                    </tr>`;
+                });
+                html += '</table>';
+                container.innerHTML = html;
+            } catch (error) {
+                document.getElementById('searchResults').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+
+        async function reserveBook(bookId) {
+            const patronCard = prompt('Enter your card number:');
+            if (!patronCard) return;
+
+            try {
+                const response = await fetch(`${API_URL}/reservations`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ book_id: bookId, patron_card: patronCard })
+                });
+                const result = await response.json();
+                alert(result.message || result.error);
+                searchBooks();
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        async function viewAccount() {
+            const card = document.getElementById('accountCard').value;
+            if (!card) {
+                alert('Please enter your card number');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/patrons/${card}/account`);
+                const data = await response.json();
+                const container = document.getElementById('accountResults');
+
+                if (data.error) {
+                    container.innerHTML = `<p class="error">${data.error}</p>`;
+                    return;
+                }
+
+                let html = `
+                    <h3>Welcome, ${data.patron.first_name} ${data.patron.last_name}</h3>
+                    <p><strong>Card:</strong> ${data.patron.card_number}</p>
+                    <p><strong>Email:</strong> ${data.patron.email}</p>
+                    <h4>Currently Checked Out (${data.checkouts.length})</h4>`;
+                if (data.checkouts.length > 0) {
+                    html += '<ul>';
+                    data.checkouts.forEach(c => html += `<li>${c.title} (Due: ${c.due_date})</li>`);
+                    html += '</ul>';
+                } else {
+                    html += '<p>No books checked out.</p>';
+                }
+
+                html += `<h4>Active Reservations (${data.reservations.length})</h4>`;
+                if (data.reservations.length > 0) {
+                    html += '<ul>';
+                    data.reservations.forEach(r => html += `<li>${r.title} (Queue position: ${r.queue_position})</li>`);
+                    html += '</ul>';
+                } else {
+                    html += '<p>No active reservations.</p>';
+                }
+
+                container.innerHTML = html;
+            } catch (error) {
+                document.getElementById('accountResults').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+
+        async function signUp() {
+            const card = document.getElementById('signupCard').value;
+            const firstName = document.getElementById('signupFirstName').value;
+            const lastName = document.getElementById('signupLastName').value;
+            const email = document.getElementById('signupEmail').value;
+
+            if (!card || !firstName || !lastName || !email) {
+                document.getElementById('signupResult').innerHTML = '<p class="error">Please fill all fields.</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/patrons`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ card_number: card, first_name: firstName, last_name: lastName, email })
+                });
+                const result = await response.json();
+                document.getElementById('signupResult').innerHTML = result.error ? 
+                    `<p class="error">${result.error}</p>` : 
+                    `<p class="success">${result.message} - Your card number is: ${card}</p>`;
+            } catch (error) {
+                document.getElementById('signupResult').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+
+        // ===== LIBRARIAN FUNCTIONS =====
+
+        async function addBook() {
+            const title = document.getElementById('addTitle').value;
+            const author = document.getElementById('addAuthor').value;
+            const genre = document.getElementById('addGenre').value;
+            const copies = document.getElementById('addCopies').value;
+
+            try {
+                const response = await fetch(`${API_URL}/librarians/books`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, author, genre, total_copies: parseInt(copies) })
+                });
+                const result = await response.json();
+                alert(result.message || result.error);
+                document.getElementById('addTitle').value = '';
+                document.getElementById('addAuthor').value = '';
+                document.getElementById('addGenre').value = '';
+                document.getElementById('addCopies').value = '';
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        async function checkoutBook() {
+            const bookId = document.getElementById('checkoutBookId').value;
+            const patron = document.getElementById('checkoutPatron').value;
+            const librarian = document.getElementById('checkoutLibrarian').value;
+
+            try {
+                const response = await fetch(`${API_URL}/librarians/checkout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ book_id: parseInt(bookId), patron_card: patron, librarian_id: parseInt(librarian) })
+                });
+                const result = await response.json();
+                alert(result.message || result.error);
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        async function returnBook() {
+            const bookId = document.getElementById('returnBookId').value;
+
+            try {
+                const response = await fetch(`${API_URL}/librarians/return`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ book_id: parseInt(bookId) })
+                });
+                const result = await response.json();
+                alert(result.message || result.error);
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        async function viewFullCatalog() {
+            try {
+                const response = await fetch(`${API_URL}/librarians/catalog`);
+                const books = await response.json();
+                const container = document.getElementById('catalogResults');
+
+                if (books.length === 0) {
+                    container.innerHTML = '<p>No books in catalog.</p>';
+                    return;
+                }
+
+                let html = `<table>
+                    <tr><th>ID</th><th>Title</th><th>Author</th><th>Genre</th><th>Available</th>
+                    <th>Checked Out To</th><th>Next Reserved By</th></tr>`;
+                books.forEach(book => {
+                    html += `<tr>
+                        <td>${book.book_id}</td>
+                        <td>${book.title}</td>
+                        <td>${book.author}</td>
+                        <td>${book.genre}</td>
+                        <td>${book.available_copies}</td>
+                        <td>${book.checked_out_to || '-'}</td>
+                        <td>${book.next_reserved_by || '-'}</td>
+                    </tr>`;
+                });
+                html += '</table>';
+                container.innerHTML = html;
+            } catch (error) {
+                document.getElementById('catalogResults').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+
+        // Auto-load search on page load
+        searchBooks();
+    </script>
+</body>
+</html>
