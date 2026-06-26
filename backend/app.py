@@ -1,16 +1,32 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pyodbc
+import os
 from config import Config
 
 app = Flask(__name__)
-CORS(app)  # Allow frontend to call API
+
+# Configure CORS for production
+CORS(app, origins=['*'])  # Or specify your frontend URL
 
 def get_db_connection():
-    return pyodbc.connect(Config.SQL_CONNECTION_STRING)
+    """Get database connection with error handling"""
+    try:
+        conn_str = os.environ.get('SQL_CONNECTION_STRING')
+        if not conn_str:
+            raise ValueError("SQL_CONNECTION_STRING not set")
+        return pyodbc.connect(conn_str)
+    except pyodbc.Error as e:
+        print(f"Database connection error: {e}")
+        return None
+
+# ===== HEALTH CHECK =====
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Check if API is running"""
+    return jsonify({'status': 'healthy', 'message': 'Library API is running'})
 
 # ===== PATRON ENDPOINTS =====
-
 @app.route('/api/books', methods=['GET'])
 def search_books():
     """Search books by genre or keyword"""
@@ -18,6 +34,9 @@ def search_books():
     keyword = request.args.get('keyword', '')
     
     conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
     cursor = conn.cursor()
     
     query = "SELECT book_id, title, author, genre, available_copies FROM Books WHERE 1=1"
@@ -55,6 +74,9 @@ def create_patron():
     email = data.get('email')
     
     conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
     cursor = conn.cursor()
     
     try:
@@ -73,9 +95,11 @@ def create_patron():
 def get_patron_account(card_number):
     """View patron's own account"""
     conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
     cursor = conn.cursor()
     
-    # Get patron info
     cursor.execute(
         "SELECT card_number, first_name, last_name, email FROM Patrons WHERE card_number = ?",
         (card_number,)
@@ -85,7 +109,6 @@ def get_patron_account(card_number):
         conn.close()
         return jsonify({'error': 'Patron not found'}), 404
     
-    # Get active checkouts
     cursor.execute(
         "SELECT b.title, c.due_date FROM Checkouts c "
         "JOIN Books b ON c.book_id = b.book_id "
@@ -94,7 +117,6 @@ def get_patron_account(card_number):
     )
     checkouts = [{'title': row[0], 'due_date': row[1].strftime('%Y-%m-%d')} for row in cursor.fetchall()]
     
-    # Get active reservations
     cursor.execute(
         "SELECT b.title, r.queue_position FROM Reservations r "
         "JOIN Books b ON r.book_id = b.book_id "
@@ -124,16 +146,17 @@ def make_reservation():
     patron_card = data.get('patron_card')
     
     conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
     cursor = conn.cursor()
     
-    # Check if book is available
     cursor.execute("SELECT available_copies FROM Books WHERE book_id = ?", (book_id,))
     available = cursor.fetchone()
     if not available or available[0] > 0:
         conn.close()
         return jsonify({'error': 'Book is available, no reservation needed'}), 400
     
-    # Get current queue position
     cursor.execute(
         "SELECT COUNT(*) + 1 FROM Reservations WHERE book_id = ? AND is_active = 1",
         (book_id,)
@@ -153,12 +176,14 @@ def make_reservation():
     }), 201
 
 # ===== LIBRARIAN ENDPOINTS =====
-
 @app.route('/api/librarians/books', methods=['POST'])
 def add_book():
     """Librarian adds a book"""
     data = request.json
     conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
     cursor = conn.cursor()
     
     cursor.execute(
@@ -173,8 +198,10 @@ def add_book():
 def remove_book(book_id):
     """Librarian removes a book"""
     conn = get_db_connection()
-    cursor = conn.cursor()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
     
+    cursor = conn.cursor()
     cursor.execute("DELETE FROM Books WHERE book_id = ?", (book_id,))
     conn.commit()
     conn.close()
@@ -189,10 +216,12 @@ def checkout_book():
     librarian_id = data.get('librarian_id')
     
     conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
     cursor = conn.cursor()
     
     try:
-        # Call stored procedure
         cursor.execute(
             "{CALL sp_CheckoutBook(?, ?, ?, ?)}",
             (book_id, patron_card, librarian_id, '')
@@ -212,6 +241,9 @@ def return_book():
     book_id = data.get('book_id')
     
     conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
     cursor = conn.cursor()
     
     try:
@@ -228,8 +260,10 @@ def return_book():
 def full_catalog():
     """Librarian views full catalog with patron info"""
     conn = get_db_connection()
-    cursor = conn.cursor()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
     
+    cursor = conn.cursor()
     cursor.execute("SELECT * FROM vw_LibrarianFullCatalog")
     books = []
     for row in cursor.fetchall():
@@ -246,5 +280,14 @@ def full_catalog():
     conn.close()
     return jsonify(books)
 
+# ===== ROOT ENDPOINT =====
+@app.route('/')
+def root():
+    return jsonify({'message': 'Library API is running'})
+
+# ===== FOR AZURE =====
+# Azure App Service uses Gunicorn by default
+# This allows local testing as well
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
