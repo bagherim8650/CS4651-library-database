@@ -77,4 +77,5 @@ jobs:
         with:
           app-name: 'library-api-app'
           slot-name: 'Production'
+          package: .
           
