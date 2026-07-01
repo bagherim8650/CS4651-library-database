@@ -1,3 +1,4 @@
+from flask import send_from_directory
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pyodbc
@@ -280,10 +281,10 @@ def full_catalog():
     conn.close()
     return jsonify(books)
 
-# ===== ROOT ENDPOINT =====
+# ===== ROOT ENDPOINT / FRONTEND =====
 @app.route('/')
-def root():
-    return jsonify({'message': 'Library API is running'})
+def serve_frontend():
+    return send_from_directory('static', 'index.html')
 
 # ===== FOR AZURE =====
 # Azure App Service uses Gunicorn by default
